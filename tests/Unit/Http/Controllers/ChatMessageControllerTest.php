@@ -26,10 +26,15 @@ class ChatMessageControllerTest extends TestCase
         $service = Mockery::mock(ChatMessageService::class);
         $controller = new ChatMessageController($service);
 
+        $authenticatedUserId = 99;
         $payload = $this->makeSendMessagePayload();
+        unset($payload['sender_id']);
 
         $request = Mockery::mock(SendMessageRequest::class);
         $request->shouldReceive('validated')->once()->andReturn($payload);
+        $request->shouldReceive('user')->once()->andReturn((object) ['id' => $authenticatedUserId]);
+
+        $expectedPayload = array_merge($payload, ['sender_id' => $authenticatedUserId]);
 
         $expectedResponse = ResponseHelper::success(
             'success',
@@ -37,11 +42,42 @@ class ChatMessageControllerTest extends TestCase
             ['example' => true],
         );
 
-        $service->shouldReceive('sendMessage')->once()->with($payload)->andReturn($expectedResponse);
+        $service->shouldReceive('sendMessage')->once()->with($expectedPayload)->andReturn($expectedResponse);
 
         $response = $controller->sendMessage($request);
 
         $this->assertSame($expectedResponse, $response);
+    }
+
+    public function test_send_message_ignores_spoofed_sender_id_from_payload(): void
+    {
+        $service = Mockery::mock(ChatMessageService::class);
+        $controller = new ChatMessageController($service);
+
+        $authenticatedUserId = 7;
+        $spoofedSenderId = 123;
+
+        $payload = $this->makeSendMessagePayload(['sender_id' => $spoofedSenderId]);
+        unset($payload['sender_id']);
+
+        $request = Mockery::mock(SendMessageRequest::class);
+        $request->shouldReceive('validated')->once()->andReturn($payload);
+        $request->shouldReceive('user')->once()->andReturn((object) ['id' => $authenticatedUserId]);
+
+        $forwardedData = null;
+        $service->shouldReceive('sendMessage')
+            ->once()
+            ->with(Mockery::on(function (array $data) use (&$forwardedData) {
+                $forwardedData = $data;
+
+                return true;
+            }))
+            ->andReturn(ResponseHelper::success('success', 'Message sent successfully'));
+
+        $controller->sendMessage($request);
+
+        $this->assertSame($authenticatedUserId, $forwardedData['sender_id']);
+        $this->assertNotSame($spoofedSenderId, $forwardedData['sender_id']);
     }
 
     public function test_get_chat_history_forwards_ids_to_service(): void

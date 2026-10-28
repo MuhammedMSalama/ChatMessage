@@ -28,7 +28,10 @@ class ChatMessageController extends BaseController
      */
     public function sendMessage(SendMessageRequest $request)
     {
-        return $this->chatMessageService->sendMessage($request->validated());
+        $data = $request->validated();
+        $data['sender_id'] = $request->user()->id;
+
+        return $this->chatMessageService->sendMessage($data);
     }
 
     /**

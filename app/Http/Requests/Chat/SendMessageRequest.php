@@ -28,8 +28,11 @@ class SendMessageRequest extends FormRequest
     public function rules()
     {
         return [
-            'sender_id' => 'required|exists:users,id',
-            'receiver_id' => 'required|exists:users,id|different:sender_id',
+            'receiver_id' => [
+                'required',
+                'exists:users,id',
+                Rule::notIn([$this->user()?->id]),
+            ],
             'message_text' => 'required|string',
             'message_type' => ['required', Rule::in(MessageType::values())],
             'attachment_url' => 'nullable|string',
