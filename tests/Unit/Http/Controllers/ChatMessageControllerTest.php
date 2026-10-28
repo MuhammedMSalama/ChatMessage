@@ -5,9 +5,11 @@ namespace Tests\Unit\Http\Controllers;
 use App\Helper\ResponseHelper;
 use App\Http\Controllers\ChatMessageController;
 use App\Http\Requests\Chat\SendMessageRequest;
+use App\Models\User;
 use App\Services\ChatMessageService;
+use Illuminate\Support\Facades\Auth;
 use Mockery;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 use Tests\Traits\MakesSendMessagePayload;
 
 class ChatMessageControllerTest extends TestCase
@@ -19,6 +21,14 @@ class ChatMessageControllerTest extends TestCase
         Mockery::close();
 
         parent::tearDown();
+    }
+
+    private function actingAsUserWithId(int $id): void
+    {
+        $user = new User();
+        $user->id = $id;
+
+        Auth::setUser($user);
     }
 
     public function test_send_message_forwards_validated_payload_to_service(): void
@@ -80,13 +90,15 @@ class ChatMessageControllerTest extends TestCase
         $this->assertNotSame($spoofedSenderId, $forwardedData['sender_id']);
     }
 
-    public function test_get_chat_history_forwards_ids_to_service(): void
+    public function test_get_chat_history_forwards_ids_to_service_for_a_participant(): void
     {
         $service = Mockery::mock(ChatMessageService::class);
         $controller = new ChatMessageController($service);
 
         $senderId = 1;
         $receiverId = 2;
+
+        $this->actingAsUserWithId($senderId);
 
         $expectedResponse = ResponseHelper::success(
             'success',
@@ -101,13 +113,29 @@ class ChatMessageControllerTest extends TestCase
         $this->assertSame($expectedResponse, $response);
     }
 
-    public function test_mark_as_read_forwards_ids_to_service(): void
+    public function test_get_chat_history_rejects_a_non_participant(): void
+    {
+        $service = Mockery::mock(ChatMessageService::class);
+        $controller = new ChatMessageController($service);
+
+        $this->actingAsUserWithId(999);
+
+        $service->shouldNotReceive('getChatHistory');
+
+        $this->expectException(\Illuminate\Auth\Access\AuthorizationException::class);
+
+        $controller->getChatHistory(1, 2);
+    }
+
+    public function test_mark_as_read_forwards_ids_to_service_for_a_participant(): void
     {
         $service = Mockery::mock(ChatMessageService::class);
         $controller = new ChatMessageController($service);
 
         $senderId = 1;
         $receiverId = 2;
+
+        $this->actingAsUserWithId($receiverId);
 
         $expectedResponse = ResponseHelper::success(
             'success',
@@ -121,12 +149,28 @@ class ChatMessageControllerTest extends TestCase
         $this->assertSame($expectedResponse, $response);
     }
 
-    public function test_contacts_forwards_user_id_to_service(): void
+    public function test_mark_as_read_rejects_a_non_participant(): void
+    {
+        $service = Mockery::mock(ChatMessageService::class);
+        $controller = new ChatMessageController($service);
+
+        $this->actingAsUserWithId(999);
+
+        $service->shouldNotReceive('markAsRead');
+
+        $this->expectException(\Illuminate\Auth\Access\AuthorizationException::class);
+
+        $controller->markAsRead(1, 2);
+    }
+
+    public function test_contacts_forwards_user_id_to_service_for_the_owner(): void
     {
         $service = Mockery::mock(ChatMessageService::class);
         $controller = new ChatMessageController($service);
 
         $userId = 10;
+
+        $this->actingAsUserWithId($userId);
 
         $expectedResponse = ResponseHelper::success(
             'success',
@@ -139,6 +183,20 @@ class ChatMessageControllerTest extends TestCase
         $response = $controller->contacts($userId);
 
         $this->assertSame($expectedResponse, $response);
+    }
+
+    public function test_contacts_rejects_a_non_owner(): void
+    {
+        $service = Mockery::mock(ChatMessageService::class);
+        $controller = new ChatMessageController($service);
+
+        $this->actingAsUserWithId(999);
+
+        $service->shouldNotReceive('getContacts');
+
+        $this->expectException(\Illuminate\Auth\Access\AuthorizationException::class);
+
+        $controller->contacts(10);
     }
 
     public function test_get_all_chats_forwards_to_service(): void

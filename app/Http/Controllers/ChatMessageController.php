@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Base\BaseController;
 use App\Http\Requests\Chat\SendMessageRequest;
+use App\Models\ChatMessage;
 use App\Services\ChatMessageService;
 use Illuminate\Http\Request;
 
@@ -41,6 +42,8 @@ class ChatMessageController extends BaseController
      */
     public function getChatHistory(int $senderId, int $receiverId)
     {
+        $this->authorize('viewHistory', [ChatMessage::class, $senderId, $receiverId]);
+
         return $this->chatMessageService->getChatHistory($senderId, $receiverId);
     }
 
@@ -51,6 +54,8 @@ class ChatMessageController extends BaseController
      */
     public function markAsRead(int $senderId, int $receiverId)
     {
+        $this->authorize('markAsRead', [ChatMessage::class, $senderId, $receiverId]);
+
         return $this->chatMessageService->markAsRead($senderId, $receiverId);
     }
 
@@ -60,6 +65,8 @@ class ChatMessageController extends BaseController
      */
     public function contacts(int $userId)
     {
+        $this->authorize('viewContacts', [ChatMessage::class, $userId]);
+
         return $this->chatMessageService->getContacts($userId);
     }
 

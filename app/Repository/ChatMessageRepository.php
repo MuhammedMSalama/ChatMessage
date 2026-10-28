@@ -26,7 +26,8 @@ class ChatMessageRepository implements ChatMessageInterface
      */
     public function getChatHistory(int $senderId, int $receiverId): Collection
     {
-        return ChatMessage::where(function ($query) use ($senderId, $receiverId) {
+        return ChatMessage::with(['sender', 'receiver'])
+            ->where(function ($query) use ($senderId, $receiverId) {
             $query->where('sender_id', $senderId)->where('receiver_id', $receiverId);
         })->orWhere(function ($query) use ($senderId, $receiverId) {
             $query->where('sender_id', $receiverId)->where('receiver_id', $senderId);
